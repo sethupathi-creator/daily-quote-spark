@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { QUOTES, randomIndex } from "@/lib/quotes";
+import { matchQuoteToMood } from "@/lib/mood.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -18,8 +20,28 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const [index, setIndex] = useState<number | null>(null);
+  const [mood, setMood] = useState("");
+  const [matching, setMatching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const matchMood = useServerFn(matchQuoteToMood);
+
   useEffect(() => setIndex(randomIndex(QUOTES.length)), []);
   const quote = index === null ? null : QUOTES[index];
+
+  async function onMatch(e: React.FormEvent) {
+    e.preventDefault();
+    if (!mood.trim() || matching) return;
+    setMatching(true);
+    setError(null);
+    try {
+      const result = await matchMood({ data: { mood } });
+      setIndex(result.index);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't match a quote right now. Try again.");
+    } finally {
+      setMatching(false);
+    }
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6">
@@ -41,6 +63,25 @@ function Index() {
         >
           New Quote
         </button>
+        <form onSubmit={onMatch} className="mx-auto mt-10 flex max-w-md items-center gap-2">
+          <input
+            type="text"
+            value={mood}
+            onChange={(e) => setMood(e.target.value)}
+            placeholder="How are you feeling?"
+            aria-label="Your mood"
+            maxLength={200}
+            className="w-full rounded-full border border-input bg-card px-5 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <button
+            type="submit"
+            disabled={matching || !mood.trim()}
+            className="shrink-0 rounded-full border border-border px-6 py-3 text-sm font-medium text-foreground transition hover:bg-accent disabled:opacity-50"
+          >
+            {matching ? "Matching…" : "Match my mood"}
+          </button>
+        </form>
+        {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
       </div>
     </main>
   );
